@@ -1,91 +1,90 @@
-name: Auto Convert Ruleset
+name: Auto Build MRS Files
 
 on:
   push:
     paths:
-      - '**.yaml'  # 监听所有 yaml 文件的变动
+      - '**.yaml'      # 监听所有 yaml 文件的变动
       - '**.yml'
     branches:
-      - main       # 或者是 master，根据你的主分支名称修改
-  workflow_dispatch:
+      - main           # 根据你的主分支名称修改 (master 或 main)
+  workflow_dispatch:   # 允许手动触发
 
 permissions:
-  contents: write
+  contents: write      # 需要写权限来推送生成的 mrs 文件
 
 jobs:
   convert:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Download Latest Mihomo
+      - name: Install and Run Mihomo
         run: |
-          echo "🔍 Fetching latest Mihomo release URL..."
+          echo "🔍 Fetching latest Mihomo release tag..."
+          # 使用 GitHub API 获取 Latest Release 的 Tag Name (例如 v1.18.1)
+          LATEST_TAG=$(curl -sL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r ".tag_name")
           
-          # 使用 GitHub API 获取 Latest Release 的下载链接
-          # 筛选逻辑：linux-amd64 架构，排除 compatible 版本（也就是 v3 指令集版本，通常用标准版即可），必须是 .gz 结尾
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
-            | grep "browser_download_url" \
-            | grep "linux-amd64-" \
-            | grep -v "compatible" \
-            | grep ".gz" \
-            | head -n 1 \
-            | cut -d '"' -f 4)
-          
-          echo "⬇️ Downloading from: $DOWNLOAD_URL"
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" == "null" ]; then
+            echo "❌ Failed to fetch latest tag."
+            exit 1
+          fi
+
+          echo "⬇️  Downloading Mihomo $LATEST_TAG..."
+          # 构造下载链接 (文件名通常为 mihomo-linux-amd64-{version}.gz)
+          DOWNLOAD_URL="https://github.com/MetaCubeX/mihomo/releases/download/$LATEST_TAG/mihomo-linux-amd64-$LATEST_TAG.gz"
           
           wget -q "$DOWNLOAD_URL" -O mihomo.gz
+          
+          # 解压并赋予执行权限
           gzip -d mihomo.gz
           chmod +x mihomo
           
           echo "✅ Mihomo version:"
           ./mihomo -v
 
-      - name: Convert Rulesets
-        run: |
-          # 遍历当前目录下所有的 .yaml 文件
-          # ⚠️ 注意：你需要根据自己的文件结构调整路径，例如 rules/*.yaml
+          # --- 开始批量转换 ---
+          echo "🚀 Starting conversion..."
           
+          # 遍历当前目录下所有的 yaml 文件
+          # 如果你的规则在子目录，请改为 `find . -name "*.yaml"` 配合循环
           for file in *.yaml; do
-            # 跳过 workflow 自身配置或非规则文件
+            # 排除非规则集文件（例如 GitHub Action 配置文件本身，如果它在根目录）
             [[ "$file" == "docker-compose.yaml" ]] && continue
             
+            # 获取不带后缀的文件名
             filename=$(basename "$file" .yaml)
-            echo "--------------------------------"
-            echo "Processing: $file"
-
-            # === 自动判断规则类型 (核心逻辑) ===
-            # mihomo convert-ruleset 需要指定 behavior: 'domain' 或 'ipcidr'
-            # 这里使用简单的文件名匹配逻辑：
-            # 如果文件名包含 "ip" (如 ipcidr.yaml, cn-ip.yaml)，则使用 ipcidr
-            # 否则默认为 domain
             
-            if [[ "$filename" == *"ip"* ]]; then
-              behavior="ipcidr"
+            # === 智能判断规则类型 ===
+            # 方法 1: 简单的文件名判断 (包含 ip 或 cidr 视为 ipcidr，否则为 domain)
+            if [[ "$filename" == *"ip"* ]] || [[ "$filename" == *"cidr"* ]]; then
+              TYPE="ipcidr"
+            # 方法 2: 你也可以通过 grep 读取文件内容来判断
+            # elif grep -q "ipcidr" "$file"; then
+            #   TYPE="ipcidr"
             else
-              behavior="domain"
+              TYPE="domain"
             fi
             
-            echo "Type detected: $behavior"
-
-            # 执行转换命令
-            ./mihomo convert-ruleset $behavior "$file" "${filename}.mrs"
-
+            echo "Processing: $file -> ${filename}.mrs (Type: $TYPE)"
+            
+            # 调用命令: mihomo convert-ruleset <type> <input> <output>
+            ./mihomo convert-ruleset "$TYPE" "$file" "${filename}.mrs"
+            
             if [ $? -eq 0 ]; then
-              echo "✅ Success: ${filename}.mrs created."
+              echo "✅ Created ${filename}.mrs"
             else
-              echo "❌ Error: Failed to convert $file"
+              echo "❌ Error converting $file"
               exit 1
             fi
           done
+          
+          # 清理 mihomo 可执行文件，避免提交到仓库
+          rm mihomo
 
-      - name: Delete Mihomo Binary
-        run: rm mihomo
-
-      - name: Commit and Push
+      - name: Commit and Push MRS Files
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update .mrs rulesets (via mihomo latest) [skip ci]"
+          commit_message: "chore: update mrs files from latest rules [skip ci]"
           file_pattern: "*.mrs"
