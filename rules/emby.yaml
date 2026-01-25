@@ -1,0 +1,5 @@
+# 自用emby规则
+
+payload:
+  - 'emos.best'
+  - '*.okemby.org'
