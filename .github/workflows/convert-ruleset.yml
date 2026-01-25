@@ -3,14 +3,11 @@ name: Auto Build MRS Files
 on:
   push:
     paths:
-      - '**.yaml'      # 监听所有 yaml 文件的变动
-      - '**.yml'
-    branches:
-      - main           # 根据你的主分支名称修改 (master 或 main)
-  workflow_dispatch:   # 允许手动触发
+      - '**.yaml'
+  workflow_dispatch:
 
 permissions:
-  contents: write      # 需要写权限来推送生成的 mrs 文件
+  contents: write
 
 jobs:
   convert:
@@ -23,68 +20,55 @@ jobs:
       - name: Install and Run Mihomo
         run: |
           echo "🔍 Fetching latest Mihomo release tag..."
-          # 使用 GitHub API 获取 Latest Release 的 Tag Name (例如 v1.18.1)
           LATEST_TAG=$(curl -sL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r ".tag_name")
           
-          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" == "null" ]; then
-            echo "❌ Failed to fetch latest tag."
-            exit 1
-          fi
-
           echo "⬇️  Downloading Mihomo $LATEST_TAG..."
-          # 构造下载链接 (文件名通常为 mihomo-linux-amd64-{version}.gz)
           DOWNLOAD_URL="https://github.com/MetaCubeX/mihomo/releases/download/$LATEST_TAG/mihomo-linux-amd64-$LATEST_TAG.gz"
           
           wget -q "$DOWNLOAD_URL" -O mihomo.gz
-          
-          # 解压并赋予执行权限
           gzip -d mihomo.gz
           chmod +x mihomo
           
           echo "✅ Mihomo version:"
           ./mihomo -v
 
-          # --- 开始批量转换 ---
           echo "🚀 Starting conversion..."
           
-          # 遍历当前目录下所有的 yaml 文件
-          # 如果你的规则在子目录，请改为 `find . -name "*.yaml"` 配合循环
-          for file in *.yaml; do
-            # 排除非规则集文件（例如 GitHub Action 配置文件本身，如果它在根目录）
-            [[ "$file" == "docker-compose.yaml" ]] && continue
-            
-            # 获取不带后缀的文件名
+          # 开启 nullglob，防止没有 yaml 文件时遍历出 "*.yaml" 字符串
+          shopt -s nullglob
+          
+          # 查找所有 yaml 文件（包含子目录）
+          # 使用 find 命令更安全，避免目录层级问题
+          find . -type f -name "*.yaml" -not -path "./.github/*" | while read -r file; do
             filename=$(basename "$file" .yaml)
+            dirname=$(dirname "$file")
             
-            # === 智能判断规则类型 ===
-            # 方法 1: 简单的文件名判断 (包含 ip 或 cidr 视为 ipcidr，否则为 domain)
+            # 简单的类型判断
             if [[ "$filename" == *"ip"* ]] || [[ "$filename" == *"cidr"* ]]; then
               TYPE="ipcidr"
-            # 方法 2: 你也可以通过 grep 读取文件内容来判断
-            # elif grep -q "ipcidr" "$file"; then
-            #   TYPE="ipcidr"
             else
               TYPE="domain"
             fi
             
-            echo "Processing: $file -> ${filename}.mrs (Type: $TYPE)"
+            echo "Processing: $file -> $dirname/${filename}.mrs (Type: $TYPE)"
             
-            # 调用命令: mihomo convert-ruleset <type> <input> <output>
-            ./mihomo convert-ruleset "$TYPE" "$file" "${filename}.mrs"
+            # --- 核心修复 ---
+            # 新版语法: ./mihomo convert-ruleset <behavior> <format> <input> <output>
+            # 增加了 'yaml' 参数
+            ./mihomo convert-ruleset "$TYPE" yaml "$file" "$dirname/${filename}.mrs"
             
             if [ $? -eq 0 ]; then
-              echo "✅ Created ${filename}.mrs"
+              echo "✅ Created $dirname/${filename}.mrs"
             else
               echo "❌ Error converting $file"
               exit 1
             fi
           done
-          
-          # 清理 mihomo 可执行文件，避免提交到仓库
+
           rm mihomo
 
       - name: Commit and Push MRS Files
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update mrs files from latest rules [skip ci]"
-          file_pattern: "*.mrs"
+          commit_message: "chore: update mrs files [skip ci]"
+          file_pattern: "**/*.mrs"
