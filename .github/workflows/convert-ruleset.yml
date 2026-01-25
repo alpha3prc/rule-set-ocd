@@ -1,70 +1,91 @@
-name: Convert Ruleset to MRS
+name: Auto Convert Ruleset
 
-# 触发条件：当 rules 目录下的 yaml 文件发生 push 时触发
-# 如果你的文件在根目录，请修改 paths 为 '**.yaml'
 on:
   push:
     paths:
-      - '**.yaml'
-  workflow_dispatch: # 允许手动触发
+      - '**.yaml'  # 监听所有 yaml 文件的变动
+      - '**.yml'
+    branches:
+      - main       # 或者是 master，根据你的主分支名称修改
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  convert:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Mihomo (Clash Meta)
+      - name: Download Latest Mihomo
         run: |
-          # 下载最新版 Mihomo (Clash Meta) 内核
-          # 这里的 URL使用了 alpha 版本以确保功能最新，你也可以固定特定 Release 版本
-          wget https://github.com/MetaCubeX/mihomo/releases/download/v1.17.0/mihomo-linux-amd64-v1.17.0.gz -O mihomo.gz
+          echo "🔍 Fetching latest Mihomo release URL..."
+          
+          # 使用 GitHub API 获取 Latest Release 的下载链接
+          # 筛选逻辑：linux-amd64 架构，排除 compatible 版本（也就是 v3 指令集版本，通常用标准版即可），必须是 .gz 结尾
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
+            | grep "browser_download_url" \
+            | grep "linux-amd64-" \
+            | grep -v "compatible" \
+            | grep ".gz" \
+            | head -n 1 \
+            | cut -d '"' -f 4)
+          
+          echo "⬇️ Downloading from: $DOWNLOAD_URL"
+          
+          wget -q "$DOWNLOAD_URL" -O mihomo.gz
           gzip -d mihomo.gz
           chmod +x mihomo
+          
+          echo "✅ Mihomo version:"
           ./mihomo -v
 
-      - name: Convert YAML to MRS
+      - name: Convert Rulesets
         run: |
-          # 创建存放 mrs 的目录（可选，如果想放在原处可跳过）
-          # mkdir -p output 
-          
-          # 遍历所有的 yaml 文件
-          # 注意：你需要根据文件名判断规则类型 (domain/ipcidr)，或者统一处理
+          # 遍历当前目录下所有的 .yaml 文件
+          # ⚠️ 注意：你需要根据自己的文件结构调整路径，例如 rules/*.yaml
           
           for file in *.yaml; do
-            # 排除非规则文件（如 github workflow 自身配置等，如果都在根目录）
+            # 跳过 workflow 自身配置或非规则文件
             [[ "$file" == "docker-compose.yaml" ]] && continue
             
             filename=$(basename "$file" .yaml)
-            echo "Processing $file..."
+            echo "--------------------------------"
+            echo "Processing: $file"
 
-            # --- 策略部分：判断规则类型 ---
-            # 简单的判断逻辑：如果文件名包含 'ip' 则认为是 ipcidr，否则默认为 domain
-            # 你可以根据实际情况修改这个逻辑
+            # === 自动判断规则类型 (核心逻辑) ===
+            # mihomo convert-ruleset 需要指定 behavior: 'domain' 或 'ipcidr'
+            # 这里使用简单的文件名匹配逻辑：
+            # 如果文件名包含 "ip" (如 ipcidr.yaml, cn-ip.yaml)，则使用 ipcidr
+            # 否则默认为 domain
+            
             if [[ "$filename" == *"ip"* ]]; then
               behavior="ipcidr"
             else
               behavior="domain"
             fi
             
-            # 执行转换命令: mihomo convert-ruleset <behavior> <input> <output>
+            echo "Type detected: $behavior"
+
+            # 执行转换命令
             ./mihomo convert-ruleset $behavior "$file" "${filename}.mrs"
-            
+
             if [ $? -eq 0 ]; then
-              echo "✅ Generated ${filename}.mrs (Type: $behavior)"
+              echo "✅ Success: ${filename}.mrs created."
             else
-              echo "❌ Failed to convert $file"
+              echo "❌ Error: Failed to convert $file"
               exit 1
             fi
           done
 
-      - name: Commit and Push Changes
+      - name: Delete Mihomo Binary
+        run: rm mihomo
+
+      - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: auto generate .mrs files [skip ci]"
+          commit_message: "chore: update .mrs rulesets (via mihomo latest) [skip ci]"
           file_pattern: "*.mrs"
