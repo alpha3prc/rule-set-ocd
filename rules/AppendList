@@ -1,1 +1,3 @@
-
+# 自用非大陆附加规则
+payload:
+  - "+.imgur.com"
