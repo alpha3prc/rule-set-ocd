@@ -2,3 +2,4 @@ payload:
   - "+.service.signalr.net"
   - "+.dcg.microsoft.com"
   - "mobile.events.data.microsoft.com"
+  - "default.exp-tas.com"
