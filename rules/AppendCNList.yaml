@@ -6,3 +6,7 @@ payload:
   - "+.ghxi.com"
   - "+.selectgroup.click"
   - "+.gh-proxy.org"
+  # 抖音视频与静态资源
+  - '+.douyinvod.com'
+  - '+.douyinstatic.com'
+  - '+.douyinpic.com'
