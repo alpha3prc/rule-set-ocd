@@ -1,0 +1,11 @@
+payload:
+  # 抖音核心 API
+  - '+.amemv.com'
+  - '+.douyin.com'
+  - '+.iesdouyin.com'
+  # 快手核心 API
+  - '+.apissl.ksapisrv.com'
+  - '+.gifshow.com'
+  # 小红书核心 API
+  - '+.edith.xiaohongshu.com'
+  - '+.xiaohongshu.com'
