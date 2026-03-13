@@ -1,16 +1,23 @@
 payload:
-# === 抖音 (Douyin) 核心API ===
-  - "+.aweme.snssdk.com"
-  - "+.aweme.amemv.com"
-  - "+.api.amemv.com"
-  - "+.api.douyin.com"
-  - "+.log.snssdk.com"
-# === 快手 (Kuaishou) 核心API ===
-  - "+.api.gifshow.com"
-  - "+.log-api.gifshow.com"
-  - "+.api.ksapisrv.com"
-  - "+.apissl.ksapisrv.com"
-# === 小红书 (Xiaohongshu) 核心API ===
-  - "+.edith.xiaohongshu.com"
-  - "+.api.xiaohongshu.com"
-  - "+.www.xiaohongshu.com"
+  # === 抖音 (Douyin) 核心鉴权与环境 API ===
+  - DOMAIN,aweme.snssdk.com         # 核心 Feed 流数据
+  - DOMAIN,aweme-v2.snssdk.com      # 备用 Feed 流数据
+  - DOMAIN,passport.snssdk.com      # 账号登录与 IP 属地绑定 (极度关键)
+  - DOMAIN,log.snssdk.com           # 日志与环境特征上报 (极度关键)
+  - DOMAIN,extlog.snssdk.com        # 扩展日志上报
+  - DOMAIN-SUFFIX,amemv.com         # 老旧但仍在服役的底层 API (流量极小，保留 Suffix)
+  - DOMAIN,www.douyin.com           # 网页版及 APP 内嵌个人主页
+
+  # === 小红书 (Xiaohongshu) 核心鉴权与环境 API ===
+  - DOMAIN,edith.xiaohongshu.com    # 核心 Feed 流、点赞、发版接口
+  - DOMAIN,passport.xiaohongshu.com # 账号鉴权接口
+  - DOMAIN,www.xiaohongshu.com      # 主站接口
+  - DOMAIN,referee.xiaohongshu.com  # 风控与环境检测接口
+
+  # === 快手 (Kuaishou) 核心鉴权与环境 API ===
+  - DOMAIN,apissl.ksapisrv.com      # 核心 API
+  - DOMAIN,api.ksapisrv.com         # 核心 API
+  - DOMAIN,api.kuaishou.com         # 主站 API
+  - DOMAIN,passport.kuaishou.com    # 账号鉴权接口
+  - DOMAIN,log.kuaishou.com         # 日志上报
+  - DOMAIN,api.gifshow.com          # 底层 API
