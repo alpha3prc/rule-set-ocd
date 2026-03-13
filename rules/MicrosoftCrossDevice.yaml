@@ -1,7 +1,14 @@
 payload:
   - "default.exp-tas.com"
   - "dcg.microsoft.com"
-  - "*.service.signalr.net"
+  - "graph.microsoft.com"
+  - "phone-relay.microsoft.com"
+  - "activity.windows.com"
+  - "www.msftconnecttest.com"
+  - "www.msftncsi.com"
   - "worldaz.turn.teams.microsoft.com"
   - "relay.communication.microsoft.com"
-
+  - "ipv6.msftconnecttest.com"
+  - "*.service.signalr.net"
+  - "+.cdp.microsoft.com"
+  - "+.wns.windows.com"
