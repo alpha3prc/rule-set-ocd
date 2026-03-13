@@ -1,11 +1,16 @@
 payload:
-  # 抖音核心 API
-  - '+.amemv.com'
-  - '+.douyin.com'
-  - '+.iesdouyin.com'
-  # 快手核心 API
-  - '+.apissl.ksapisrv.com'
-  - '+.gifshow.com'
-  # 小红书核心 API
-  - '+.edith.xiaohongshu.com'
-  - '+.xiaohongshu.com'
+# === 抖音 (Douyin) 核心API ===
+  +.aweme.snssdk.com
+  +.aweme.amemv.com
+  +.api.amemv.com
+  +.api.douyin.com
+  +.log.snssdk.com
+# === 快手 (Kuaishou) 核心API ===
+  +.api.gifshow.com
+  +.log-api.gifshow.com
+  +.api.ksapisrv.com
+  +.apissl.ksapisrv.com
+# === 小红书 (Xiaohongshu) 核心API ===
+  +.edith.xiaohongshu.com
+  +.api.xiaohongshu.com
+  +.www.xiaohongshu.com
