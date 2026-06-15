@@ -1,9 +1,10 @@
-name: Auto Build MRS Files
+name: Auto Build MRS and SRS Files
 
 on:
   push:
     paths:
       - '**.yaml'
+      - '**.json'
   workflow_dispatch:
 
 permissions:
@@ -17,7 +18,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install and Run Mihomo
+      # ==========================================
+      # 步骤 1: 使用 Mihomo 转换 YAML 到 MRS
+      # ==========================================
+      - name: Install and Run Mihomo (YAML -> MRS)
         run: |
           echo "🔍 Fetching latest Mihomo release tag..."
           LATEST_TAG=$(curl -sL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r ".tag_name")
@@ -32,13 +36,11 @@ jobs:
           echo "✅ Mihomo version:"
           ./mihomo -v
 
-          echo "🚀 Starting conversion..."
+          echo "🚀 Starting YAML to MRS conversion..."
           
-          # 开启 nullglob，防止没有 yaml 文件时遍历出 "*.yaml" 字符串
           shopt -s nullglob
           
           # 查找所有 yaml 文件（包含子目录）
-          # 使用 find 命令更安全，避免目录层级问题
           find . -type f -name "*.yaml" -not -path "./.github/*" | while read -r file; do
             filename=$(basename "$file" .yaml)
             dirname=$(dirname "$file")
@@ -52,9 +54,6 @@ jobs:
             
             echo "Processing: $file -> $dirname/${filename}.mrs (Type: $TYPE)"
             
-            # --- 核心修复 ---
-            # 新版语法: ./mihomo convert-ruleset <behavior> <format> <input> <output>
-            # 增加了 'yaml' 参数
             ./mihomo convert-ruleset "$TYPE" yaml "$file" "$dirname/${filename}.mrs"
             
             if [ $? -eq 0 ]; then
@@ -67,8 +66,57 @@ jobs:
 
           rm mihomo
 
-      - name: Commit and Push MRS Files
+      # ==========================================
+      # 步骤 2: 使用 sing-box 转换 JSON 到 SRS
+      # ==========================================
+      - name: Install and Run sing-box (JSON -> SRS)
+        run: |
+          echo "🔍 Fetching latest sing-box release tag..."
+          # 获取最新的 tag (例如 v1.9.0)
+          SINGBOX_TAG=$(curl -sL https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r ".tag_name")
+          # 移除首字母 v，得到 1.9.0
+          SINGBOX_VERSION=${SINGBOX_TAG#v} 
+          
+          echo "⬇️  Downloading sing-box $SINGBOX_TAG..."
+          DOWNLOAD_URL="https://github.com/SagerNet/sing-box/releases/download/$SINGBOX_TAG/sing-box-$SINGBOX_VERSION-linux-amd64.tar.gz"
+          
+          wget -q "$DOWNLOAD_URL" -O sing-box.tar.gz
+          tar -xzf sing-box.tar.gz
+          mv sing-box-$SINGBOX_VERSION-linux-amd64/sing-box ./sing-box
+          chmod +x sing-box
+          
+          echo "✅ sing-box version:"
+          ./sing-box version
+          
+          echo "🚀 Starting JSON to SRS conversion..."
+          
+          shopt -s nullglob
+          
+          # 查找所有 json 文件（包含子目录）进行转换
+          find . -type f -name "*.json" -not -path "./.github/*" | while read -r file; do
+            filename=$(basename "$file" .json)
+            dirname=$(dirname "$file")
+            
+            echo "Processing: $file -> $dirname/${filename}.srs"
+            
+            ./sing-box rule-set compile "$file" -o "$dirname/${filename}.srs"
+            
+            if [ $? -eq 0 ]; then
+              echo "✅ Created $dirname/${filename}.srs"
+            else
+              echo "❌ Error converting $file"
+              exit 1
+            fi
+          done
+          
+          # 清理工作目录
+          rm -rf sing-box sing-box.tar.gz sing-box-$SINGBOX_VERSION-linux-amd64
+
+      # ==========================================
+      # 步骤 3: 自动提交生成的 MRS 和 SRS 文件
+      # ==========================================
+      - name: Commit and Push MRS/SRS Files
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update mrs files [skip ci]"
-          file_pattern: "**/*.mrs"
+          commit_message: "chore: auto update mrs and srs rulesets [skip ci]"
+          file_pattern: "**/*.mrs **/*.srs"
